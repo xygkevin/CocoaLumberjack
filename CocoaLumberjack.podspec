@@ -8,10 +8,9 @@ Pod::Spec.new do |s|
   s.source   = { :git => 'https://github.com/xygkevin/CocoaLumberjack.git',
                  :tag => "#{s.version}" }
 
-  s.description = 'It is similar in concept to other popular logging frameworks such as log4j, '   \\
-                  'yet is designed specifically for objective-c, and takes advantage of features ' \\
-                  'such as multi-threading, grand central dispatch (if available), lockless '      \\
-                  'atomic operations, and the dynamic nature of the objective-c runtime.'
+  s.description = <<-DESC
+It is similar in concept to other popular logging frameworks such as log4j, yet is designed specifically for objective-c, and takes advantage of features such as multi-threading, grand central dispatch (if available), lockless atomic operations, and the dynamic nature of the objective-c runtime.
+                  DESC
 
   s.cocoapods_version = '>= 1.7.0'
   s.swift_versions = ['5.5', '5.6', '5.7']
