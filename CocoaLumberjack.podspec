@@ -19,13 +19,15 @@ It is similar in concept to other popular logging frameworks such as log4j, yet 
   s.ios.deployment_target     = '12.0'
 
   s.preserve_paths = 'README.md', 'LICENSE', 'CHANGELOG.md'
+  s.pod_target_xcconfig  = { 'VALID_ARCHS' => 'x86_64 armv7 arm64' }
 
   s.default_subspecs = 'Core'
-
+  s.requires_arc 	    = true
   s.subspec 'Core' do |ss|
     ss.source_files         = 'Sources/CocoaLumberjack/**/*.{h,m}'
     ss.private_header_files = 'Sources/CocoaLumberjack/DD*Internal.{h}'
     ss.resource_bundles = { 'CocoaLumberjackPrivacy' => 'Sources/CocoaLumberjack/PrivacyInfo.xcprivacy' }
+
   end
 
   s.subspec 'Swift' do |ss|
