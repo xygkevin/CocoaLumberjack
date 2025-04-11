@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -euo pipefail
-SCRIPT_NAME="$(basename $0)"
+SCRIPT_NAME="$(basename "$0")"
 
 
 # Functions
@@ -46,7 +46,7 @@ if [[ $# -gt 0 ]]; then
         echo 'For more information use --help.'
         echo ''
         print_usage 'usage_only'
-        exit -1
+        exit 1
     fi
 fi
 
@@ -62,19 +62,21 @@ VERSION_CONFIG_VAR='MARKETING_VERSION'
 MACOS_SDK_CONFIG_VAR='MACOSX_DEPLOYMENT_TARGET'
 IOS_SDK_CONFIG_VAR='IPHONEOS_DEPLOYMENT_TARGET'
 TVOS_SDK_CONFIG_VAR='TVOS_DEPLOYMENT_TARGET'
+VISIONOS_SDK_CONFIG_VAR='XROS_DEPLOYMENT_TARGET'
 WATCHOS_SDK_CONFIG_VAR='WATCHOS_DEPLOYMENT_TARGET'
 
 
 # Read files
 # ##########
 echo 'Reading config...'
-pushd "$(dirname $0)/../" > /dev/null
+pushd "$(dirname "$0")/../" > /dev/null
 
 CURRENT_VERSION="$(read_config_var "${VERSION_CONFIG_VAR}" '[0-9]+\.[0-9]+\.[0-9]+' "${VERSION_XCCONFIG_FILE}")"
 
 MACOS_SDK="$(read_config_var "${MACOS_SDK_CONFIG_VAR}" '[0-9]+\.[0-9]+' "${SDKS_XCCONFIG_FILE}")"
 IOS_SDK="$(read_config_var "${IOS_SDK_CONFIG_VAR}" '[0-9]+\.[0-9]+' "${SDKS_XCCONFIG_FILE}")"
 TVOS_SDK="$(read_config_var "${TVOS_SDK_CONFIG_VAR}" '[0-9]+\.[0-9]+' "${SDKS_XCCONFIG_FILE}")"
+VISIONOS_SDK="$(read_config_var "${VISIONOS_SDK_CONFIG_VAR}" '[0-9]+\.[0-9]+' "${SDKS_XCCONFIG_FILE}")"
 WATCHOS_SDK="$(read_config_var "${WATCHOS_SDK_CONFIG_VAR}" '[0-9]+\.[0-9]+' "${SDKS_XCCONFIG_FILE}")"
 
 SUPPORTED_SWIFT_VERSIONS=''
@@ -96,40 +98,44 @@ echo 'Verifying config...'
 
 if [[ -z "${CURRENT_VERSION}" ]]; then
     echo "Could not find MARKETING_VERSION in ${VERSION_XCCONFIG_FILE}!"
-    exit -1
+    exit 1
 elif [[ -n "${VERSION_TO_VERIFY}" ]] && [[ "${VERSION_TO_VERIFY}" != "${CURRENT_VERSION}" ]]; then
     echo "MARKETING_VERSION in ${VERSION_XCCONFIG_FILE} is ${CURRENT_VERSION}, but ${VERSION_TO_VERIFY} was expected!"
-    exit -1
+    exit 1
 fi
 
 if [[ -z "${MACOS_SDK}" ]]; then
     echo "Could not find ${MACOS_SDK_CONFIG_VAR} in ${SDKS_XCCONFIG_FILE}!"
-    exit -1
+    exit 1
 fi
 if [[ -z "${IOS_SDK}" ]]; then
     echo "Could not find ${IOS_SDK_CONFIG_VAR} in ${SDKS_XCCONFIG_FILE}!"
-    exit -1
+    exit 1
 fi
 if [[ -z "${TVOS_SDK}" ]]; then
     echo "Could not find ${TVOS_SDK_CONFIG_VAR} in ${SDKS_XCCONFIG_FILE}!"
-    exit -1
+    exit 1
+fi
+if [[ -z "${VISIONOS_SDK}" ]]; then
+    echo "Could not find ${VISIONOS_SDK_CONFIG_VAR} in ${SDKS_XCCONFIG_FILE}!"
+    exit 1
 fi
 if [[ -z "${WATCHOS_SDK}" ]]; then
     echo "Could not find ${WATCHOS_SDK_CONFIG_VAR} in ${SDKS_XCCONFIG_FILE}!"
-    exit -1
+    exit 1
 fi
 
 # Generate podspec
 # ################
 echo "Generating podspec..."
-pushd "$(dirname $0)/../" > /dev/null
+pushd "$(dirname "$0")/../" > /dev/null
 
 cat << EOF > ./CocoaLumberjack.podspec
 Pod::Spec.new do |s|
   s.name     = 'CocoaLumberjack'
   s.version  = '${CURRENT_VERSION}'
   s.license  = 'BSD'
-  s.summary  = 'A fast & simple, yet powerful & flexible logging framework for macOS, iOS, tvOS and watchOS.'
+  s.summary  = 'A fast & simple, yet powerful & flexible logging framework for macOS, iOS, tvOS, watchOS and visionOS.'
   s.authors  = { 'Robbie Hanson' => 'robbiehanson@deusty.com' }
   s.homepage = 'https://github.com/CocoaLumberjack/CocoaLumberjack'
   s.source   = { :git => 'https://github.com/CocoaLumberjack/CocoaLumberjack.git',
@@ -140,15 +146,16 @@ Pod::Spec.new do |s|
                   'such as multi-threading, grand central dispatch (if available), lockless '      \\
                   'atomic operations, and the dynamic nature of the objective-c runtime.'
 
-  s.cocoapods_version = '>= 1.7.0'
+  s.cocoapods_version = '>= 1.13.0'
   s.swift_versions = [${SUPPORTED_SWIFT_VERSIONS}]
 
-  s.osx.deployment_target     = '${MACOS_SDK}'
-  s.ios.deployment_target     = '${IOS_SDK}'
-  s.tvos.deployment_target    = '${TVOS_SDK}'
-  s.watchos.deployment_target = '${WATCHOS_SDK}'
+  s.osx.deployment_target      = '${MACOS_SDK}'
+  s.ios.deployment_target      = '${IOS_SDK}'
+  s.tvos.deployment_target     = '${TVOS_SDK}'
+  s.visionos.deployment_target = '${VISIONOS_SDK}'
+  s.watchos.deployment_target  = '${WATCHOS_SDK}'
 
-  s.preserve_paths = 'README.md', 'LICENSE', 'CHANGELOG.md'
+  s.preserve_paths = 'README.md', 'LICENSE'
 
   s.default_subspecs = 'Core'
 

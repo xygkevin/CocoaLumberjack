@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -31,7 +31,7 @@ extension DDLog {
         private var subscriber: S?
         private weak var log: DDLog?
 
-        /// Not used but `DDLogger` requires it.
+        /// Not used but ``DDLogger`` requires it.
         /// The preferred way to achieve this is to use the `map` Combine operator of the publisher.
         /// Example:
         /// ```

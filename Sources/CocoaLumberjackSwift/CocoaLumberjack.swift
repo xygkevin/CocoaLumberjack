@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -13,6 +13,11 @@
 //   to endorse or promote products derived from this software without specific
 //   prior written permission of Deusty, LLC.
 
+// swiftlint:disable file_length
+
+#if canImport(Synchronization)
+import Synchronization
+#endif
 @_exported import CocoaLumberjack
 #if SWIFT_PACKAGE
 import CocoaLumberjackSwiftSupport
@@ -49,8 +54,49 @@ extension DDLogFlag {
     }
 }
 
-/// The log level that can dynamically limit log messages (vs. the static DDDefaultLogLevel). This log level will only be checked, if the message passes the `DDDefaultLogLevel`.
-public var dynamicLogLevel = DDLogLevel.all
+#if canImport(Synchronization)
+#if compiler(>=6.0)
+@available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+extension DDLogLevel: @retroactive AtomicRepresentable {}
+#else
+extension DDLogLevel: AtomicRepresentable {}
+#endif
+
+@available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+private let _dynamicLogLevel = Atomic(DDLogLevel.all)
+#endif
+
+private let _dynamicLogLevelLock = NSLock()
+#if swift(>=5.9)
+nonisolated(unsafe) private var _dynamicLogLevelStorage = DDLogLevel.all
+#else
+private var _dynamicLogLevelStorage = DDLogLevel.all
+#endif
+
+/// The log level that can dynamically limit log messages (vs. the static ``DDDefaultLogLevel``). This log level will only be checked, if the message passes the ``DDDefaultLogLevel``.
+public var dynamicLogLevel: DDLogLevel {
+    get {
+#if canImport(Synchronization)
+        if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *) {
+            return _dynamicLogLevel.load(ordering: .relaxed)
+        }
+#endif
+        _dynamicLogLevelLock.lock()
+        defer { _dynamicLogLevelLock.unlock() }
+        return _dynamicLogLevelStorage
+    }
+    set {
+#if canImport(Synchronization)
+        if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *) {
+            _dynamicLogLevel.store(newValue, ordering: .relaxed)
+            return
+        }
+#endif
+        _dynamicLogLevelLock.lock()
+        defer { _dynamicLogLevelLock.unlock() }
+        _dynamicLogLevelStorage = newValue
+    }
+}
 
 /// Resets the ``dynamicLogLevel`` to ``DDLogLevel/all``.
 /// - SeeAlso: ``dynamicLogLevel``
@@ -74,8 +120,42 @@ public func resetDefaultDebugLevel() {
     resetDynamicLogLevel()
 }
 
+#if canImport(Synchronization)
+@available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+private let _asyncLoggingEnabled = Atomic(true)
+#endif
+
+private let _asyncLoggingEnabledLock = NSLock()
+#if swift(>=5.9)
+nonisolated(unsafe) private var _asyncLoggingEnabledStorage = true
+#else
+private var _asyncLoggingEnabledStorage = true
+#endif
+
 /// If `true`, all logs (except errors) are logged asynchronously by default.
-public var asyncLoggingEnabled = true
+public var asyncLoggingEnabled: Bool {
+    get {
+#if canImport(Synchronization)
+        if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *) {
+            return _asyncLoggingEnabled.load(ordering: .relaxed)
+        }
+#endif
+        _asyncLoggingEnabledLock.lock()
+        defer { _asyncLoggingEnabledLock.unlock() }
+        return _asyncLoggingEnabledStorage
+    }
+    set {
+#if canImport(Synchronization)
+        if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *) {
+            _asyncLoggingEnabled.store(newValue, ordering: .relaxed)
+            return
+        }
+#endif
+        _asyncLoggingEnabledLock.lock()
+        defer { _asyncLoggingEnabledLock.unlock() }
+        _asyncLoggingEnabledStorage = newValue
+    }
+}
 
 @frozen
 public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
@@ -85,17 +165,17 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
     struct Storage {
 #if swift(>=5.6)
         @usableFromInline
-        typealias Args = Array<any CVarArg>
+        typealias VArg = any CVarArg
 #else
         @usableFromInline
-        typealias Args = Array<CVarArg>
+        typealias VArg = CVarArg
 #endif
         @usableFromInline
         let requiresArgumentParsing: Bool
         @usableFromInline
         var format: String
         @usableFromInline
-        var args: Args {
+        var args: Array<VArg> {
             willSet {
                 // We only assert here to let the compiler optimize it away.
                 // The setter will be used repeatedly during string interpolation, thus should stay fast.
@@ -104,7 +184,7 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
         }
 
         @usableFromInline
-        init(requiresArgumentParsing: Bool, format: String, args: Args) {
+        init(requiresArgumentParsing: Bool, format: String, args: Array<VArg>) {
             precondition(requiresArgumentParsing || args.isEmpty, "Non-empty arguments always require argument parsing!")
             self.requiresArgumentParsing = requiresArgumentParsing
             self.format = format
@@ -113,7 +193,7 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
 
         @available(*, deprecated, message: "Use initializer specifying the need for argument parsing: init(requiresArgumentParsing:format:args:)")
         @usableFromInline
-        init(format: String, args: Args) {
+        init(format: String, args: Array<VArg>) {
             self.init(requiresArgumentParsing: !args.isEmpty, format: format, args: args)
         }
 
@@ -123,7 +203,7 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
         }
 
         @inlinable
-        mutating func addValue(_ arg: Args.Element, withSpecifier specifier: String) {
+        mutating func addValue(_ arg: VArg, withSpecifier specifier: String) {
             format.append(specifier)
             args.append(arg)
         }
@@ -138,7 +218,7 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
         public init(literalCapacity: Int, interpolationCount: Int) {
             var format = String()
             format.reserveCapacity(literalCapacity)
-            var args = Storage.Args()
+            var args = Array<Storage.VArg>()
             args.reserveCapacity(interpolationCount)
             storage = .init(requiresArgumentParsing: true, format: format, args: args)
         }
@@ -227,24 +307,25 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
         }
 
         @inlinable
-        public mutating func appendInterpolation<Convertible: ReferenceConvertible>(_ c: Convertible) {
-            if c is CVarArg {
+        public mutating func appendInterpolation<Convertible: ReferenceConvertible>(_ convertible: Convertible) {
+            if convertible is Storage.VArg {
                 print("""
                 [WARNING]: CocoaLumberjackSwift is creating a \(DDLogMessageFormat.self) with an interpolation conforming to `CVarArg` \
                 using the overload for `ReferenceConvertible` interpolations!
                 Please report this as a bug, including the following snippet:
                 ```
-                Convertible: \(Convertible.self), ReferenceType: \(Convertible.ReferenceType.self), type(of: c): \(type(of: c))
+                Convertible: \(Convertible.self), ReferenceType: \(Convertible.ReferenceType.self), type(of: convertible): \(type(of: convertible))
                 ```
                 """)
             }
             // This should be safe, sine the compiler should convert it to the reference.
-            storage.addValue(c as? CVarArg ?? c as! Convertible.ReferenceType, withSpecifier: "%@")
+            // swiftlint:disable:next force_cast
+            storage.addValue(convertible as? Storage.VArg ?? convertible as! Convertible.ReferenceType, withSpecifier: "%@")
         }
 
         @inlinable
-        public mutating func appendInterpolation<Obj: NSObject>(_ o: Obj) {
-            storage.addValue(o, withSpecifier: "%@")
+        public mutating func appendInterpolation<Obj: NSObject>(_ object: Obj) {
+            storage.addValue(object, withSpecifier: "%@")
         }
 
         @_disfavoredOverload
@@ -259,7 +340,7 @@ public struct DDLogMessageFormat: ExpressibleByStringInterpolation {
     @inlinable
     var format: String { storage.format }
     @inlinable
-    var args: Storage.Args { storage.args }
+    var args: Array<Storage.VArg> { storage.args }
 
     @inlinable
     var formatted: String {
@@ -317,7 +398,7 @@ public func _DDLogMessage(_ messageFormat: @autoclosure () -> DDLogMessageFormat
                           function: StaticString,
                           line: UInt,
                           tag: Any?,
-                          asynchronous: Bool,
+                          asynchronous: Bool?,
                           ddlog: DDLog) {
     // The `dynamicLogLevel` will always be checked here (instead of being passed in).
     // We cannot "mix" it with the `DDDefaultLogLevel`, because otherwise the compiler won't strip strings that are not logged.
@@ -330,7 +411,7 @@ public func _DDLogMessage(_ messageFormat: @autoclosure () -> DDLogMessageFormat
                                       function: function,
                                       line: line,
                                       tag: tag)
-        ddlog.log(asynchronous: asynchronous, message: logMessage)
+        ddlog.log(asynchronous: asynchronous ?? asyncLoggingEnabled, message: logMessage)
     }
 }
 
@@ -342,7 +423,7 @@ public func DDLogDebug(_ message: @autoclosure () -> DDLogMessageFormat,
                        function: StaticString = #function,
                        line: UInt = #line,
                        tag: Any? = nil,
-                       asynchronous: Bool = asyncLoggingEnabled,
+                       asynchronous: Bool? = nil,
                        ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -364,7 +445,7 @@ public func DDLogInfo(_ message: @autoclosure () -> DDLogMessageFormat,
                       function: StaticString = #function,
                       line: UInt = #line,
                       tag: Any? = nil,
-                      asynchronous: Bool = asyncLoggingEnabled,
+                      asynchronous: Bool? = nil,
                       ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -386,7 +467,7 @@ public func DDLogWarn(_ message: @autoclosure () -> DDLogMessageFormat,
                       function: StaticString = #function,
                       line: UInt = #line,
                       tag: Any? = nil,
-                      asynchronous: Bool = asyncLoggingEnabled,
+                      asynchronous: Bool? = nil,
                       ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -408,7 +489,7 @@ public func DDLogVerbose(_ message: @autoclosure () -> DDLogMessageFormat,
                          function: StaticString = #function,
                          line: UInt = #line,
                          tag: Any? = nil,
-                         asynchronous: Bool = asyncLoggingEnabled,
+                         asynchronous: Bool? = nil,
                          ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -430,7 +511,7 @@ public func DDLogError(_ message: @autoclosure () -> DDLogMessageFormat,
                        function: StaticString = #function,
                        line: UInt = #line,
                        tag: Any? = nil,
-                       asynchronous: Bool = false,
+                       asynchronous: Bool? = nil,
                        ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -440,7 +521,7 @@ public func DDLogError(_ message: @autoclosure () -> DDLogMessageFormat,
                   function: function,
                   line: line,
                   tag: tag,
-                  asynchronous: asynchronous,
+                  asynchronous: asynchronous ?? false,
                   ddlog: ddlog)
 }
 
@@ -455,7 +536,7 @@ public func _DDLogMessage(_ message: @autoclosure () -> Any,
                           function: StaticString,
                           line: UInt,
                           tag: Any?,
-                          asynchronous: Bool,
+                          asynchronous: Bool?,
                           ddlog: DDLog) {
     // This will lead to `messageFormat` and `message` being equal on DDLogMessage,
     // which is what the legacy initializer of DDLogMessage does as well.
@@ -481,7 +562,7 @@ public func DDLogDebug(_ message: @autoclosure () -> Any,
                        function: StaticString = #function,
                        line: UInt = #line,
                        tag: Any? = nil,
-                       asynchronous async: Bool = asyncLoggingEnabled,
+                       asynchronous async: Bool? = nil,
                        ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -505,7 +586,7 @@ public func DDLogInfo(_ message: @autoclosure () -> Any,
                       function: StaticString = #function,
                       line: UInt = #line,
                       tag: Any? = nil,
-                      asynchronous async: Bool = asyncLoggingEnabled,
+                      asynchronous async: Bool? = nil,
                       ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -529,7 +610,7 @@ public func DDLogWarn(_ message: @autoclosure () -> Any,
                       function: StaticString = #function,
                       line: UInt = #line,
                       tag: Any? = nil,
-                      asynchronous async: Bool = asyncLoggingEnabled,
+                      asynchronous async: Bool? = nil,
                       ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -553,7 +634,7 @@ public func DDLogVerbose(_ message: @autoclosure () -> Any,
                          function: StaticString = #function,
                          line: UInt = #line,
                          tag: Any? = nil,
-                         asynchronous async: Bool = asyncLoggingEnabled,
+                         asynchronous async: Bool? = nil,
                          ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -577,7 +658,7 @@ public func DDLogError(_ message: @autoclosure () -> Any,
                        function: StaticString = #function,
                        line: UInt = #line,
                        tag: Any? = nil,
-                       asynchronous async: Bool = false,
+                       asynchronous async: Bool? = nil,
                        ddlog: DDLog = .sharedInstance) {
     _DDLogMessage(message(),
                   level: level,
@@ -587,7 +668,7 @@ public func DDLogError(_ message: @autoclosure () -> Any,
                   function: function,
                   line: line,
                   tag: tag,
-                  asynchronous: async,
+                  asynchronous: async ?? false,
                   ddlog: ddlog)
 }
 
@@ -610,3 +691,6 @@ public func currentFileName(_ fileName: StaticString = #file) -> String {
 public func CurrentFileName(_ fileName: StaticString = #file) -> String {
     currentFileName(fileName)
 }
+// swiftlint:enable identifier_name
+
+// swiftlint:enable file_length

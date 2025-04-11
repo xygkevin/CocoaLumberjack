@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -117,6 +117,36 @@ static const DDLogLevel ddLogLevel = DDLogLevelAll;
     XCTAssertFalse(newLogFileInfo.isArchived);
 }
 
+- (void)testLoggingAfterLogFileRolling {
+    [DDLog addLogger:logger];
+    DDLogError(@"Some log in the old file");
+    __auto_type oldLogFileInfo = [logger currentLogFileInfo];
+    XCTAssertNotNil(oldLogFileInfo);
+    __auto_type expectation = [self expectationWithDescription:@"Waiting for the log file to be rolled"];
+    [logger rollLogFileWithCompletionBlock:^{
+        [expectation fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:3 handler:^(NSError * _Nullable error) {
+        XCTAssertNil(error);
+    }];
+    DDLogError(@"Some log in the new file");
+    __auto_type newLogFileInfo = [logger currentLogFileInfo];
+    XCTAssertNotNil(newLogFileInfo);
+    XCTAssertTrue([[NSFileManager defaultManager] fileExistsAtPath:oldLogFileInfo.filePath]);
+    XCTAssertTrue([[NSFileManager defaultManager] fileExistsAtPath:newLogFileInfo.filePath]);
+    __auto_type oldString = [NSString stringWithContentsOfFile:oldLogFileInfo.filePath
+                                                      encoding:NSUTF8StringEncoding
+                                                         error:nil];
+    __auto_type newString = [NSString stringWithContentsOfFile:newLogFileInfo.filePath
+                                                      encoding:NSUTF8StringEncoding
+                                                         error:nil];
+
+    XCTAssertFalse(oldString.length == 0);
+    XCTAssertFalse(newString.length == 0);
+    XCTAssertTrue([oldString containsString:@"Some log in the old file"]);
+    XCTAssertTrue([newString containsString:@"Some log in the new file"]);
+}
+
 - (void)testExplicitLogFileRollingWhenNotReusingLogFiles {
     logger.doNotReuseLogFiles = YES;
 
@@ -137,12 +167,15 @@ static const DDLogLevel ddLogLevel = DDLogLevelAll;
 }
 
 - (void)testAutomaticLogFileRollingWhenNotReusingLogFiles {
+    // Use new logger so that it appears to be resuming.
     DDFileLogger *newLogger = [[DDFileLogger alloc] initWithLogFileManager:logFileManager];
     newLogger.doNotReuseLogFiles = YES;
 
     [DDLog addLogger:logger];
+
     DDLogError(@"Some log in the old file");
     __auto_type oldLogFileInfo = [logger currentLogFileInfo];
+    usleep(1000); // prevent file name clash due to same time.
     __auto_type newLogFileInfo = [newLogger currentLogFileInfo];
     XCTAssertNotNil(oldLogFileInfo);
     XCTAssertNotNil(newLogFileInfo);
@@ -160,6 +193,8 @@ static const DDLogLevel ddLogLevel = DDLogLevelAll;
     XCTAssertEqualObjects(info1.filePath, info2.filePath);
 
     info2.isArchived = YES;
+
+    usleep(1000); // make sure we have a different msec count. Otherwise the file names might be equal.
 
     __auto_type info3 = logger.currentLogFileInfo;
     __auto_type info4 = logger.currentLogFileInfo;
@@ -339,7 +374,7 @@ static const DDLogLevel ddLogLevel = DDLogLevelAll;
 
 - (void)testSerializer {
     logFileManager.logMessageSerializer = [[DDMockedSerializer alloc] initWithSerializerBlock:^NSData *(NSString * string, DDLogMessage * msg) {
-        NSString *resultingString = [NSString stringWithFormat:@"MessageLength: %ld; Message: %@", string.length, string];
+        NSString *resultingString = [NSString stringWithFormat:@"MessageLength: %lu; Message: %@", string.length, string];
         if (msg) {
             resultingString = [resultingString stringByAppendingString:@"; Message was non-nil"];
         }

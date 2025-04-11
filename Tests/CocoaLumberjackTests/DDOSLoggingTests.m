@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -15,8 +15,37 @@
 
 @import XCTest;
 
+#import <os/log.h>
+
 #import <CocoaLumberjack/DDOSLogger.h>
 #import <CocoaLumberjack/DDASLLogger.h>
+#import <CocoaLumberjack/DDLogMacros.h>
+
+@interface DDTestOSLogLevelMapper: NSObject <DDOSLogLevelMapper>
+
+@property (nonatomic, strong) id<DDOSLogLevelMapper> underlyingMapper;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *collectedLogFlags;
+
+@end
+
+@implementation DDTestOSLogLevelMapper
+
+- (instancetype)initWithUnderlyingMapper:(id<DDOSLogLevelMapper>)underlyingMapper
+{
+    self = [super init];
+    if (self) {
+        self.underlyingMapper = underlyingMapper;
+        self.collectedLogFlags = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (os_log_type_t)osLogTypeForLogFlag:(DDLogFlag)logFlag {
+    [self.collectedLogFlags addObject:@(logFlag)];
+    return [self.underlyingMapper osLogTypeForLogFlag:logFlag];
+}
+
+@end
 
 @interface DDOSLoggingTests : XCTestCase
 @end
@@ -29,6 +58,7 @@
 }
 
 - (void)tearDown {
+    [DDLog removeAllLoggers];
     [super tearDown];
 }
 
@@ -38,7 +68,9 @@
         [DDLog addLogger:logger];
         XCTAssertEqualObjects(logger.loggerName, DDLoggerNameOS);
         XCTAssertEqualObjects(logger, DDLog.allLoggers.firstObject);
-    } else {
+    }
+#if !TARGET_OS_WATCH
+    else {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
         __auto_type logger = [DDASLLogger new];
@@ -47,6 +79,50 @@
         XCTAssertEqualObjects(logger, DDLog.allLoggers.firstObject);
 #pragma clang diagnostic pop
     }
+#endif
 }
+
+- (void)testDDOSLogLevelMapper {
+    __auto_type mapper = [[DDTestOSLogLevelMapper alloc] initWithUnderlyingMapper:[[DDOSLogLevelMapperDefault alloc] init]];
+    __auto_type logger = [[DDOSLogger alloc] initWithLogLevelMapper:mapper];
+    [DDLog addLogger:logger];
+
+    __auto_type ddLogLevel = DDLogLevelVerbose;
+    DDLogVerbose(@"VERBOSE");
+    DDLogDebug(@"DEBUG");
+    DDLogInfo(@"INFO");
+    DDLogWarn(@"WARN");
+    DDLogError(@"ERROR");
+
+    XCTAssertEqual(mapper.collectedLogFlags.count, 5);
+    if (mapper.collectedLogFlags.count < 5) return; // prevent test crashes
+    XCTAssertEqual(mapper.collectedLogFlags[0].unsignedIntegerValue, DDLogFlagVerbose);
+    XCTAssertEqual(mapper.collectedLogFlags[1].unsignedIntegerValue, DDLogFlagDebug);
+    XCTAssertEqual(mapper.collectedLogFlags[2].unsignedIntegerValue, DDLogFlagInfo);
+    XCTAssertEqual(mapper.collectedLogFlags[3].unsignedIntegerValue, DDLogFlagWarning);
+    XCTAssertEqual(mapper.collectedLogFlags[4].unsignedIntegerValue, DDLogFlagError);
+}
+
+- (void)testDDOSLogLevelMapperDefault {
+    __auto_type mapper = [[DDOSLogLevelMapperDefault alloc] init];
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagVerbose], OS_LOG_TYPE_DEBUG);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagDebug], OS_LOG_TYPE_DEBUG);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagInfo], OS_LOG_TYPE_INFO);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagWarning], OS_LOG_TYPE_ERROR);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagError], OS_LOG_TYPE_ERROR);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:NSUIntegerMax], OS_LOG_TYPE_DEFAULT);
+}
+
+#if TARGET_OS_SIMULATOR
+- (void)testDDOSLogLevelMapperSimulatorConsoleAppWorkaround {
+    __auto_type mapper = [[DDOSLogLevelMapperSimulatorConsoleAppWorkaround alloc] init];
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagVerbose], OS_LOG_TYPE_DEFAULT);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagDebug], OS_LOG_TYPE_DEFAULT);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagInfo], OS_LOG_TYPE_INFO);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagWarning], OS_LOG_TYPE_ERROR);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:DDLogFlagError], OS_LOG_TYPE_ERROR);
+    XCTAssertEqual([mapper osLogTypeForLogFlag:NSUIntegerMax], OS_LOG_TYPE_DEFAULT);
+}
+#endif
 
 @end

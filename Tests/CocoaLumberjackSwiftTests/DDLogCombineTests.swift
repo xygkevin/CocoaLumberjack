@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -26,8 +26,7 @@ final class DDLogCombineTests: XCTestCase {
     private var subscriptions = Set<AnyCancellable>()
 
     private var logFormatter: DDLogFileFormatterDefault {
-        //let's return a formatter that doesn't change based where the
-        //test is being run.
+        // let's return a formatter that doesn't change based where the test is being run.
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy/MM/dd HH:mm:ss:SSS"
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -164,7 +163,7 @@ final class DDLogCombineTests: XCTestCase {
         XCTAssertEqual(receivedValue, ["2001/01/01 00:01:40:000  An error occurred",
                                        "2001/01/01 00:03:20:000  WARNING: this is incorrect"])
     }
-    
+
     func testQOSNameInstantiation() {
         let name = "UI"
         let qos: qos_class_t = {
@@ -175,10 +174,9 @@ final class DDLogCombineTests: XCTestCase {
                 return QOS_CLASS_UNSPECIFIED
             }
         }()
-        
+
         XCTAssertEqual(qos, QOS_CLASS_USER_INTERACTIVE)
     }
 }
-
 #endif
 #endif

@@ -13,7 +13,7 @@ CocoaLumberjack
 [![codebeat badge](https://codebeat.co/badges/840b714a-c8f3-4936-ada4-363473cd4e6b)](https://codebeat.co/projects/github-com-cocoalumberjack-cocoalumberjack-master)
 
 
-**CocoaLumberjack** is a fast & simple, yet powerful & flexible logging framework for macOS, iOS, tvOS and watchOS.
+**CocoaLumberjack** is a fast & simple, yet powerful & flexible logging framework for macOS, iOS, tvOS, watchOS and visionOS.
 
 ## How to get started
 
@@ -63,7 +63,7 @@ If you want to use the Swift Package Manager as integration method, either use X
 .package(url: "https://github.com/CocoaLumberjack/CocoaLumberjack.git", from: "3.8.0"),
 ```
 
-Note that you may need to add both products, `CocoaLumberjack` and `CocoaLumberjackSwift` to your target since SPM sometimes fails to detect that `CocoaLumerjackSwift` depends on `CocoaLumberjack`.
+Note that you may need to add both products, `CocoaLumberjack` and `CocoaLumberjackSwift` to your target since SPM sometimes fails to detect that `CocoaLumberjackSwift` depends on `CocoaLumberjack`.
 
 ### Install manually
 
@@ -232,7 +232,7 @@ Per [App privacy details on the App Store](https://developer.apple.com/app-store
 
 ### Data collection by the framework
 
-**By default, CocoaLumberjack does NOT collect any data on its own.** 
+**By default, CocoaLumberjack does NOT collect any data on its own.**
 
 [See our Data Collection Practices list.](https://cocoalumberjack.github.io/DataCollection/index.html)
 

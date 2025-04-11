@@ -1,6 +1,6 @@
 // Software License Agreement (BSD License)
 //
-// Copyright (c) 2010-2024, Deusty, LLC
+// Copyright (c) 2010-2025, Deusty, LLC
 // All rights reserved.
 //
 // Redistribution and use of this software in source and binary forms,
@@ -17,14 +17,6 @@ import XCTest
 @testable import CocoaLumberjackSwift
 
 final class DDLogMessageFormatTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-    }
-
-    override func tearDown() {
-        super.tearDown()
-    }
-
     func testMessageFormatCreationWithNoArgs() {
         let format: DDLogMessageFormat = "Message with no args"
         let expectedFormat: String = "Message with no args"
@@ -122,7 +114,7 @@ final class DDLogMessageFormatTests: XCTestCase {
     }
 
     func testMessageFormatCreationWithOtherTypes() {
-        struct TestStruct: CustomStringConvertible {
+        struct TestStruct: Sendable, CustomStringConvertible {
             var description: String { "STRUCT DESCRIPTION" }
         }
 
