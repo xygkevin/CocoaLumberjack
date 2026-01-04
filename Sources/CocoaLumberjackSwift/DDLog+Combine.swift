@@ -15,11 +15,9 @@
 
 #if arch(arm64) || arch(x86_64)
 #if canImport(Combine)
-import Combine
-
+public import Combine
 #if SWIFT_PACKAGE
-import CocoaLumberjack
-import CocoaLumberjackSwiftSupport
+public import CocoaLumberjack
 #endif
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -39,11 +37,7 @@ extension DDLog {
         ///     .map { message in /* format message */ }
         ///     .sink(receiveValue: { formattedMessage in /* process formattedMessage */ })
         /// ```
-#if compiler(>=5.7)
         var logFormatter: (any DDLogFormatter)?
-#else
-        var logFormatter: DDLogFormatter?
-#endif
 
         init(log: DDLog, with logLevel: DDLogLevel, subscriber: S) {
             self.subscriber = subscriber
@@ -113,15 +107,9 @@ extension DDLog {
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher where Output == DDLogMessage {
-#if compiler(>=5.7)
     public func formatted(with formatter: any DDLogFormatter) -> Publishers.CompactMap<Self, String> {
         compactMap { formatter.format(message: $0) }
     }
-#else
-    public func formatted(with formatter: DDLogFormatter) -> Publishers.CompactMap<Self, String> {
-        compactMap { formatter.format(message: $0) }
-    }
-#endif
 }
 #endif
 #endif

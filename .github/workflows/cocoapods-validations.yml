@@ -2,9 +2,9 @@ name: CocoaPods Validation
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   LC_CTYPE: en_US.UTF-8
@@ -12,18 +12,19 @@ env:
 
 jobs:
   validate-cocoapods:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ^15.3
-      - name: Download visionOS
+          xcode-version: ^16.4
+      - name: Install Platforms
         run: |
-            sudo xcodebuild -runFirstLaunch
-            sudo xcrun simctl list # needed to boot the simulator
-            sudo xcodebuild -downloadPlatform visionOS
-            sudo xcodebuild -runFirstLaunch
-      - uses: actions/checkout@v4
+          xcrun simctl delete unavailable # Remove unavailable sims - also boots the simulator
+          xcodebuild -downloadPlatform iOS
+          xcodebuild -downloadPlatform tvOS
+          xcodebuild -downloadPlatform visionOS
+          xcodebuild -downloadPlatform watchOS
+      - uses: actions/checkout@v6
       - name: Generate Podspec
         run: ./Scripts/generate-podspec.sh
       - name: Validate Pod
